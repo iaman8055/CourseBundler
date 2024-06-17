@@ -1,7 +1,9 @@
 
 import {Course }from '../Models/Course.js'
 import { catchAsyncError } from '../middlewares/catchAsyncError.js';
+import getDataUri from '../utils/dataUri.js';
 import ErrorHandler from '../utils/errorHandler.js';
+import cloudinary from 'cloudinary';
 export const getAllCourses= catchAsyncError(
 async (req,res,next)=>{
 
@@ -16,15 +18,18 @@ export const createcourse= catchAsyncError(
         const{title, description,category,createdBy}=req.body;
         if(!title||!description||!category||!createdBy)
         return next(new ErrorHandler("Please add all fields",400))
-        
+        const file=req.file;
+        // console.log(file);
+        const fileUri=getDataUri(file)
+        const mycloud=await cloudinary.v2.uploader.upload(fileUri.content)
         await Course.create({
             title,
             description,
             category,
             createdBy,
             poster:{
-                public_id:"temp",
-                url:"temp"
+                public_id:mycloud.public_id,
+                url:mycloud.secure_url
             }
         });
         res.status(201).json({
@@ -32,3 +37,40 @@ export const createcourse= catchAsyncError(
             message:"Course Created Successfully.You can add lectures now"
         })
     })
+
+    export const getcourselectures=catchAsyncError(
+        async(req,res,next)=>{
+            const course=Course.findById(req.params.id);
+            if(!course) return next(new ErrorHandler("No Such Course Found",404));
+
+            course.views+=1;
+            await course.save();
+            res.status(201).json({
+                success:true,
+                message:course.lectures,
+            })
+            
+        }
+    )
+
+    export const addlecture=catchAsyncError(
+        
+        async(req,res,next)=>{
+            const {title,description}=req.body;
+            if(!title||!description)return next(new ErrorHandler("Please add all fields"))
+                const file=req.file;
+            const course=Course.findById(req.params.id);
+
+            if(!course) return next("No course Found",404);
+
+            course.lectures.push({
+                title,description,
+                video:{
+                    public_id:"url",
+                    url:"url"
+                }
+            })
+            course.numsofVideos=course.lecture.length;
+            await course.save()
+        }
+    )
